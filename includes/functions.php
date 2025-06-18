@@ -350,4 +350,236 @@ function paginate($totalItems, $itemsPerPage, $currentPage) {
         'has_next' => $currentPage < $totalPages
     ];
 }
+
+// Fonctions pour le système de notifications
+// À ajouter à la fin du fichier includes/functions.php
+
+/**
+ * Créer une nouvelle notification
+ */
+function createNotification($user_id, $type, $titre, $message, $data = null) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("
+            INSERT INTO notifications (user_id, type, titre, message, data, date_creation) 
+            VALUES (?, ?, ?, ?, ?, NOW())
+        ");
+        
+        $data_json = $data ? json_encode($data, JSON_UNESCAPED_UNICODE) : null;
+        
+        $stmt->execute([$user_id, $type, $titre, $message, $data_json]);
+        
+        return $pdo->lastInsertId();
+        
+    } catch(PDOException $e) {
+        error_log("Erreur création notification: " . $e->getMessage());
+        return false;
+    }
+}
+
+/**
+ * Obtenir le nombre de notifications non lues
+ */
+function getUnreadNotificationsCount($user_id) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("SELECT COUNT(*) as count FROM notifications WHERE user_id = ? AND lue = FALSE");
+        $stmt->execute([$user_id]);
+        return $stmt->fetch()['count'];
+    } catch(PDOException $e) {
+        return 0;
+    }
+}
+
+/**
+ * Obtenir les notifications d'un utilisateur
+ */
+function getUserNotifications($user_id, $limit = 20, $offset = 0) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("
+            SELECT * FROM notifications 
+            WHERE user_id = ? 
+            ORDER BY date_creation DESC 
+            LIMIT ? OFFSET ?
+        ");
+        $stmt->execute([$user_id, $limit, $offset]);
+        return $stmt->fetchAll();
+    } catch(PDOException $e) {
+        return [];
+    }
+}
+
+/**
+ * Marquer une notification comme lue
+ */
+function markNotificationAsRead($notification_id, $user_id) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("
+            UPDATE notifications 
+            SET lue = TRUE, date_lecture = NOW() 
+            WHERE id = ? AND user_id = ?
+        ");
+        return $stmt->execute([$notification_id, $user_id]);
+    } catch(PDOException $e) {
+        return false;
+    }
+}
+
+/**
+ * Marquer toutes les notifications comme lues
+ */
+function markAllNotificationsAsRead($user_id) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("
+            UPDATE notifications 
+            SET lue = TRUE, date_lecture = NOW() 
+            WHERE user_id = ? AND lue = FALSE
+        ");
+        return $stmt->execute([$user_id]);
+    } catch(PDOException $e) {
+        return false;
+    }
+}
+
+/**
+ * Supprimer une notification
+ */
+function deleteNotification($notification_id, $user_id) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("DELETE FROM notifications WHERE id = ? AND user_id = ?");
+        return $stmt->execute([$notification_id, $user_id]);
+    } catch(PDOException $e) {
+        return false;
+    }
+}
+
+/**
+ * Notifications spécifiques pour les événements
+ */
+
+// Notification pour nouvelle réservation (chauffeur)
+function notifyNewReservation($chauffeur_id, $trajet, $passager) {
+    $titre = "🎯 Nouvelle réservation !";
+    $message = "{$passager['prenom']} {$passager['nom']} vient de réserver votre trajet {$trajet['ville_depart']} → {$trajet['ville_destination']}";
+    $data = [
+        'trajet_id' => $trajet['id'],
+        'passager_id' => $passager['id'],
+        'passager_nom' => $passager['prenom'] . ' ' . $passager['nom']
+    ];
+    
+    return createNotification($chauffeur_id, 'nouvelle_reservation', $titre, $message, $data);
+}
+
+// Notification pour réservation confirmée (passager)
+function notifyReservationConfirmed($passager_id, $trajet, $chauffeur) {
+    $titre = "✅ Réservation confirmée !";
+    $message = "Votre réservation pour le trajet {$trajet['ville_depart']} → {$trajet['ville_destination']} a été confirmée par {$chauffeur['prenom']}";
+    $data = [
+        'trajet_id' => $trajet['id'],
+        'chauffeur_id' => $chauffeur['id'],
+        'chauffeur_nom' => $chauffeur['prenom'] . ' ' . $chauffeur['nom']
+    ];
+    
+    return createNotification($passager_id, 'reservation_confirmee', $titre, $message, $data);
+}
+
+// Notification pour réservation annulée
+function notifyReservationCancelled($user_id, $trajet, $cancelled_by, $type) {
+    if ($type === 'by_passenger') {
+        $titre = "❌ Réservation annulée";
+        $message = "La réservation pour votre trajet {$trajet['ville_depart']} → {$trajet['ville_destination']} a été annulée par le passager";
+    } else {
+        $titre = "❌ Réservation annulée";
+        $message = "Votre réservation pour le trajet {$trajet['ville_depart']} → {$trajet['ville_destination']} a été annulée";
+    }
+    
+    $data = [
+        'trajet_id' => $trajet['id'],
+        'cancelled_by' => $cancelled_by
+    ];
+    
+    return createNotification($user_id, 'reservation_annulee', $titre, $message, $data);
+}
+
+// Notification pour trajet annulé
+function notifyTrajetCancelled($passager_id, $trajet, $chauffeur) {
+    $titre = "🚫 Trajet annulé";
+    $message = "Le trajet {$trajet['ville_depart']} → {$trajet['ville_destination']} du " . formatDateFr($trajet['date_trajet']) . " a été annulé par le chauffeur";
+    $data = [
+        'trajet_id' => $trajet['id'],
+        'chauffeur_id' => $chauffeur['id']
+    ];
+    
+    return createNotification($passager_id, 'trajet_annule', $titre, $message, $data);
+}
+
+// Notification pour nouvelle évaluation
+function notifyNewEvaluation($user_id, $note, $commentaire, $evaluateur_nom) {
+    $titre = "⭐ Nouvelle évaluation !";
+    $message = "Vous avez reçu une évaluation " . str_repeat('⭐', $note) . " de {$evaluateur_nom}";
+    if ($commentaire) {
+        $message .= " : \"$commentaire\"";
+    }
+    
+    $data = [
+        'note' => $note,
+        'commentaire' => $commentaire,
+        'evaluateur' => $evaluateur_nom
+    ];
+    
+    return createNotification($user_id, 'evaluation_recue', $titre, $message, $data);
+}
+
+// Notification de rappel de trajet
+function notifyTrajetReminder($user_id, $trajet, $hours_before = 2) {
+    $titre = "⏰ Rappel de trajet";
+    $message = "N'oubliez pas : votre trajet {$trajet['ville_depart']} → {$trajet['ville_destination']} commence dans {$hours_before}h";
+    $data = [
+        'trajet_id' => $trajet['id'],
+        'hours_before' => $hours_before
+    ];
+    
+    return createNotification($user_id, 'rappel_trajet', $titre, $message, $data);
+}
+
+/**
+ * Obtenir l'icône selon le type de notification
+ */
+function getNotificationIcon($type) {
+    $icons = [
+        'nouvelle_reservation' => '🎯',
+        'reservation_confirmee' => '✅',
+        'reservation_annulee' => '❌',
+        'trajet_annule' => '🚫',
+        'evaluation_recue' => '⭐',
+        'message_recu' => '💬',
+        'rappel_trajet' => '⏰'
+    ];
+    
+    return $icons[$type] ?? '🔔';
+}
+
+/**
+ * Nettoyer les anciennes notifications (à appeler périodiquement)
+ */
+function cleanOldNotifications($days = 30) {
+    global $pdo;
+    
+    try {
+        $stmt = $pdo->prepare("DELETE FROM notifications WHERE date_creation < DATE_SUB(NOW(), INTERVAL ? DAY)");
+        return $stmt->execute([$days]);
+    } catch(PDOException $e) {
+        return false;
+    }
+}
 ?>

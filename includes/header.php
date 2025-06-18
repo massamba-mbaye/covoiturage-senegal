@@ -71,6 +71,20 @@ $page_description = isset($page_description) ? $page_description : 'Plateforme d
                                 </a>
                             </li>
                         <?php endif; ?>
+                        
+                        <!-- Notifications -->
+                        <li class="nav-item notifications-item">
+                            <?php 
+                            $unread_count = getUnreadNotificationsCount($_SESSION['user_id']);
+                            ?>
+                            <a href="<?php echo SITE_URL; ?>/pages/notifications.php" class="nav-link notifications-link">
+                                <span class="notifications-icon">🔔</span>
+                                <?php if ($unread_count > 0): ?>
+                                    <span class="notifications-badge"><?php echo $unread_count > 99 ? '99+' : $unread_count; ?></span>
+                                <?php endif; ?>
+                            </a>
+                        </li>
+                        
                         <li class="nav-item dropdown">
                             <a href="#" class="nav-link dropdown-toggle" id="userDropdown">
                                 <span class="nav-icon">👤</span>
@@ -80,6 +94,12 @@ $page_description = isset($page_description) ? $page_description : 'Plateforme d
                             <ul class="dropdown-menu" id="userDropdownMenu">
                                 <li><a href="<?php echo SITE_URL; ?>/pages/profil.php" class="dropdown-link">Mon Profil</a></li>
                                 <li><a href="<?php echo SITE_URL; ?>/pages/mes-trajets.php" class="dropdown-link">Mes Trajets</a></li>
+                                <li><a href="<?php echo SITE_URL; ?>/pages/notifications.php" class="dropdown-link">
+                                    Notifications 
+                                    <?php if ($unread_count > 0): ?>
+                                        <span class="notification-count">(<?php echo $unread_count; ?>)</span>
+                                    <?php endif; ?>
+                                </a></li>
                                 <?php if (isAdmin()): ?>
                                     <li><a href="<?php echo SITE_URL; ?>/admin/" class="dropdown-link">Administration</a></li>
                                 <?php endif; ?>
@@ -116,6 +136,15 @@ $page_description = isset($page_description) ? $page_description : 'Plateforme d
                     <?php if (isChauffeur()): ?>
                         <a href="<?php echo SITE_URL; ?>/pages/publier.php" class="mobile-menu-link">➕ Publier un trajet</a>
                     <?php endif; ?>
+                    <a href="<?php echo SITE_URL; ?>/pages/notifications.php" class="mobile-menu-link">
+                        🔔 Notifications 
+                        <?php 
+                        $unread_count = getUnreadNotificationsCount($_SESSION['user_id']);
+                        if ($unread_count > 0): 
+                        ?>
+                            <span class="mobile-notification-badge"><?php echo $unread_count; ?></span>
+                        <?php endif; ?>
+                    </a>
                     <a href="<?php echo SITE_URL; ?>/pages/profil.php" class="mobile-menu-link">👤 Mon Profil</a>
                     <a href="<?php echo SITE_URL; ?>/pages/mes-trajets.php" class="mobile-menu-link">🚗 Mes Trajets</a>
                     <?php if (isAdmin()): ?>

@@ -84,6 +84,14 @@ if ($_POST) {
                         $stmt->execute([$reservation['nombre_places'], $reservation['trajet_id']]);
                     }
                     
+                    // Notifier le chauffeur
+                    $stmt = $pdo->prepare("SELECT * FROM trajets WHERE id = ?");
+                    $stmt->execute([$reservation['trajet_id']]);
+                    $trajet_info = $stmt->fetch();
+                    if ($trajet_info) {
+                        notifyReservationCancelled($trajet_info['chauffeur_id'], $trajet_info, $user['prenom'], 'by_passenger');
+                    }
+                    
                     logUserAction($user['id'], 'annulation_reservation', "Réservation ID: $reservation_id");
                     setFlashMessage("Réservation annulée avec succès.", 'success');
                 } else {

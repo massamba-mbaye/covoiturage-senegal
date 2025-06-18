@@ -9,7 +9,7 @@ define('DB_PASS', 'root'); // Mettez votre mot de passe MySQL ici
 
 // Constantes de l'application
 define('SITE_NAME', 'Covoiturage Sénégal');
-define('SITE_URL', 'http://localhost:8888/covoiturage-senegal/');
+define('SITE_URL', 'http://localhost:8888/covoiturage-senegal');
 define('UPLOAD_PATH', __DIR__ . '/../assets/images/uploads/');
 define('UPLOAD_URL', SITE_URL . '/assets/images/uploads/');
 
